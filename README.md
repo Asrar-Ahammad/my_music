@@ -93,18 +93,17 @@ No telemetry. No cloud sync. No ads. Just your music, beautifully.
 
 ## 📸 Screenshots
 
-> *Add your screenshots to a `screenshots/` folder and uncomment the section below.*
-
-<!--
 <div align="center">
-  <img src="screenshots/library.png" width="200" alt="Library"/>
-  <img src="screenshots/now_playing.png" width="200" alt="Now Playing"/>
-  <img src="screenshots/lyrics.png" width="200" alt="Lyrics"/>
-  <img src="screenshots/equalizer.png" width="200" alt="Equalizer"/>
-  <img src="screenshots/queue.png" width="200" alt="Queue"/>
-  <img src="screenshots/settings.png" width="200" alt="Settings"/>
+
+| Library | Playlists | Now Playing |
+|:-------:|:---------:|:-----------:|
+| <img src="screenshots/Screenshot_20260927-142237.png" width="200" alt="Library — All Songs"/> | <img src="screenshots/Screenshot_20260927-142241.png" width="200" alt="Playlists"/> | <img src="screenshots/Screenshot_20260927-142255.png" width="200" alt="Now Playing"/> |
+
+| Lyrics | AI Smart Search | Search Results |
+|:------:|:---------------:|:--------------:|
+| <img src="screenshots/Screenshot_20260927-142304.png" width="200" alt="Synchronized Lyrics"/> | <img src="screenshots/Screenshot_20260927-142315.png" width="200" alt="AI Mood & Genre Categories"/> | <img src="screenshots/Screenshot_20260927-142325.png" width="200" alt="Categorized Search Results"/> |
+
 </div>
--->
 
 ---
 
@@ -241,7 +240,7 @@ flutter analyze
 
 ## 🗺️ Roadmap
 
-- [ ] Screenshot showcase in README
+- [x] Screenshot showcase in README
 - [ ] Android Auto support
 - [ ] CarPlay integration
 - [ ] Sleep timer with fade-out
