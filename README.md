@@ -236,7 +236,7 @@ flutter analyze
 | **Retro Amber** | `#1A1200` | `#FFB000` | Warm CRT phosphor glow |
 | **Cyberpunk Neon** | `#0D0D1A` | `#8B5CF6` / `#06B6D4` | Electric neon terminal |
 
----
+<!-- ---
 
 ## 🗺️ Roadmap
 
@@ -245,7 +245,7 @@ flutter analyze
 - [ ] CarPlay integration
 - [ ] Sleep timer with fade-out
 - [ ] Last.fm scrobbling (opt-in)
-- [ ] Home screen mini-player widget
+- [ ] Home screen mini-player widget -->
 
 ---
 
