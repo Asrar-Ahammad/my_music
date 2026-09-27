@@ -9,7 +9,7 @@
 [![Flutter](https://img.shields.io/badge/Flutter-3.x-02569B?style=flat-square&logo=flutter&logoColor=white)](https://flutter.dev)
 [![Dart](https://img.shields.io/badge/Dart-3.12+-0175C2?style=flat-square&logo=dart&logoColor=white)](https://dart.dev)
 [![Version](https://img.shields.io/badge/Version-2.1.0-success?style=flat-square)](https://github.com/Asrar-Ahammad/my_music/releases)
-[![Platform](https://img.shields.io/badge/Platform-Android%20%7C%20iOS-lightgrey?style=flat-square)](https://flutter.dev/multi-platform)
+[![Platform](https://img.shields.io/badge/Platform-Android-lightgrey?style=flat-square)](https://flutter.dev/multi-platform)
 
 *Bit-perfect playback · 100% offline · Retro Industrial Arcade UI · 120Hz smooth*
 
