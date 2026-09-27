@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="256" height="256" shape-rendering="crispEdges">
+  <rect width="128" height="128" fill="#000000"/>
+  <!-- Retro Grid floor -->
+  <line x1="0" y1="90" x2="128" y2="90" stroke="#FF004D" stroke-width="2"/>
+  <line x1="0" y1="102" x2="128" y2="102" stroke="#FF004D" stroke-width="2"/>
+  <line x1="0" y1="116" x2="128" y2="116" stroke="#FF004D" stroke-width="2"/>
+  <line x1="64" y1="80" x2="0" y2="128" stroke="#FF004D" stroke-width="2"/>
+  <line x1="64" y1="80" x2="32" y2="128" stroke="#FF004D" stroke-width="2"/>
+  <line x1="64" y1="80" x2="64" y2="128" stroke="#FF004D" stroke-width="2"/>
+  <line x1="64" y1="80" x2="96" y2="128" stroke="#FF004D" stroke-width="2"/>
+  <line x1="64" y1="80" x2="128" y2="128" stroke="#FF004D" stroke-width="2"/>
+  <!-- Synthwave Sun -->
+  <circle cx="64" cy="56" r="32" fill="#FFA300"/>
+  <rect x="32" y="52" width="64" height="3" fill="#000000"/>
+  <rect x="32" y="60" width="64" height="4" fill="#000000"/>
+  <rect x="32" y="70" width="64" height="5" fill="#000000"/>
+  <!-- Neon Arcade Text Banner -->
+  <rect x="16" y="14" width="96" height="16" fill="#29ADFF"/>
+  <rect x="20" y="16" width="92" height="12" fill="#000000"/>
+  <!-- Decorative border -->
+  <rect x="0" y="0" width="128" height="128" fill="none" stroke="#FF004D" stroke-width="4"/>
+</svg>

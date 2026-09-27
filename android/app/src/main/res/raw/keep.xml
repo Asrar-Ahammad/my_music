@@ -1,0 +1,4 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources xmlns:tools="http://schemas.android.com/tools"
+    tools:keep="@drawable/ic_notification,@drawable/ic_repeat,@drawable/ic_repeat_dot,@drawable/ic_repeat_all,@drawable/ic_repeat_one,@drawable/ic_shuffle,@drawable/ic_shuffle_on,@drawable/ic_shuffle_dot,@drawable/ic_stop,@drawable/audio_service_stop" />
+
