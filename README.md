@@ -149,7 +149,7 @@ myMusic/
 ### Prerequisites
 - Flutter SDK `^3.12.x`
 - Dart SDK `^3.12.2`
-- Android SDK 21+ / iOS 14+
+- Android SDK 21+
 
 ### Installation
 
@@ -173,9 +173,6 @@ flutter build apk --release
 
 # Android App Bundle (for Play Store)
 flutter build appbundle --release
-
-# iOS (requires macOS + Xcode)
-flutter build ios --release
 ```
 
 ---
