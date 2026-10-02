@@ -7,6 +7,7 @@ import '../../../core/theme/retro_typography.dart';
 import '../../../core/utils/duration_formatter.dart';
 import '../../providers/font_provider.dart';
 import '../../providers/player_provider.dart';
+import '../../widgets/retro_album_art.dart';
 import '../../widgets/retro_badge.dart';
 import '../../widgets/retro_button.dart';
 import '../../widgets/retro_icon.dart';
@@ -523,6 +524,7 @@ class _QueueSheetState extends ConsumerState<QueueSheet> {
                             color: Colors.transparent,
                             child: ListTile(
                               dense: true,
+                              contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
                               leading: Row(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
@@ -544,13 +546,26 @@ class _QueueSheetState extends ConsumerState<QueueSheet> {
                                           ),
                                   ),
                                   if (isCurrent && playerState.isPlaying) ...[
-                                    const SizedBox(width: 6),
+                                    const SizedBox(width: 4),
                                     RetroIcon(
                                       'play',
-                                      size: 14,
+                                      size: 12,
                                       color: context.isNothingTheme ? context.nothing.accent : theme.colorScheme.primary,
                                     ),
                                   ],
+                                  const SizedBox(width: 10),
+                                  RetroAlbumArt(
+                                    artPath: song.artPath,
+                                    title: song.title,
+                                    artist: song.artist,
+                                    width: 40,
+                                    height: 40,
+                                    borderRadius: context.isNothingTheme ? BorderRadius.circular(6) : BorderRadius.zero,
+                                    borderWidth: context.isNothingTheme ? 0.0 : (isCurrent ? 1.5 : 1.0),
+                                    borderColor: isCurrent ? theme.colorScheme.primary : retro.borderColor,
+                                    backgroundColor: retro.cardColor,
+                                    placeholderIconSize: 18,
+                                  ),
                                 ],
                               ),
                               title: Row(

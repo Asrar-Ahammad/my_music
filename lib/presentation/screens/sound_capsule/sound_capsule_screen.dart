@@ -3,10 +3,12 @@ import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/theme/retro_colors.dart';
 import '../../../core/theme/retro_theme.dart';
 import '../../../core/theme/retro_typography.dart';
 import '../../../data/services/share_capture_service.dart';
 import '../../../domain/models/sound_capsule_stats.dart';
+import '../../providers/palette_provider.dart';
 import '../../providers/sound_capsule_provider.dart';
 import '../../widgets/retro_album_art.dart';
 import '../../widgets/retro_button.dart';
@@ -52,7 +54,7 @@ class _SoundCapsuleScreenState extends ConsumerState<SoundCapsuleScreen> {
         actions: [
           if (state.stats != null && state.stats!.hasData)
             IconButton(
-              icon: RetroIcon('sound_capsule', size: 20, color: theme.colorScheme.primary),
+              icon: RetroIcon('share', size: 18, color: theme.colorScheme.onSurface),
               tooltip: 'Share Capsule',
               onPressed: () => _openShareSheet(context, state.stats!),
             ),
@@ -275,18 +277,7 @@ class _SoundCapsuleScreenState extends ConsumerState<SoundCapsuleScreen> {
         // 5. Vibe & Insights Card
         _buildInsightsCard(stats, theme, retro),
 
-        const SizedBox(height: 24),
-
-        // 6. Share Capsule Button
-        RetroButton(
-          label: 'SHARE SOUND CAPSULE',
-          icon: const RetroIcon('sound_capsule', size: 16, color: Colors.black),
-          backgroundColor: const Color(0xFF00FFCC),
-          textColor: Colors.black,
-          onPressed: () => _openShareSheet(context, stats),
-        ),
-
-        const SizedBox(height: 24),
+        const SizedBox(height: 16),
       ],
     );
   }
@@ -873,18 +864,18 @@ class _SoundCapsuleScreenState extends ConsumerState<SoundCapsuleScreen> {
 // Share Modal with Preview, Theme Selector, and Actions
 // ─────────────────────────────────────────────────────────────────────────────
 
-class _ShareModal extends StatefulWidget {
+class _ShareModal extends ConsumerStatefulWidget {
   final SoundCapsuleStats stats;
   final GlobalKey repaintKey;
 
   const _ShareModal({required this.stats, required this.repaintKey});
 
   @override
-  State<_ShareModal> createState() => _ShareModalState();
+  ConsumerState<_ShareModal> createState() => _ShareModalState();
 }
 
-class _ShareModalState extends State<_ShareModal> {
-  ShareCardTheme _selectedTheme = ShareCardTheme.neon;
+class _ShareModalState extends ConsumerState<_ShareModal> {
+  RetroPaletteData? _selectedPalette;
   ShareAspectRatio _selectedRatio = ShareAspectRatio.story;
   bool _isCapturing = false;
 
@@ -892,9 +883,18 @@ class _ShareModalState extends State<_ShareModal> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final retro = context.retro;
+    final paletteState = ref.watch(paletteProvider);
+    final isDark = theme.brightness == Brightness.dark;
+
+    final defaultPalette = isDark
+        ? RetroColors.getDarkPalette(paletteState.darkPaletteId)
+        : RetroColors.getLightPalette(paletteState.lightPaletteId);
+
+    final activePalette = _selectedPalette ?? defaultPalette;
+    final allPalettes = [...RetroColors.darkPalettes, ...RetroColors.lightPalettes];
 
     return Container(
-      height: MediaQuery.of(context).size.height * 0.88,
+      height: MediaQuery.of(context).size.height * 0.90,
       decoration: BoxDecoration(
         color: retro.cardColor,
         border: Border(
@@ -913,7 +913,7 @@ class _ShareModalState extends State<_ShareModal> {
             ),
             child: Row(
               children: [
-                const RetroIcon('sound_capsule', size: 16, color: Color(0xFF00FFCC)),
+                RetroIcon('share', size: 16, color: theme.colorScheme.primary),
                 const SizedBox(width: 8),
                 Text(
                   'EXPORT SOUND CAPSULE',
@@ -936,17 +936,26 @@ class _ShareModalState extends State<_ShareModal> {
             child: SingleChildScrollView(
               padding: const EdgeInsets.all(16),
               child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  // Live Card Preview (wrapped in RepaintBoundary for capture)
-                  Center(
-                    child: SizedBox(
-                      width: 260,
-                      child: RepaintBoundary(
-                        key: widget.repaintKey,
-                        child: SoundCapsuleShareCard(
-                          stats: widget.stats,
-                          cardTheme: _selectedTheme,
-                          aspectRatio: _selectedRatio,
+                  // Live Card Preview: firmly bounded in 290px container with FittedBox
+                  Container(
+                    height: 290,
+                    width: double.infinity,
+                    alignment: Alignment.center,
+                    padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 8),
+                    child: FittedBox(
+                      fit: BoxFit.contain,
+                      child: SizedBox(
+                        width: _selectedRatio.canonicalWidth,
+                        height: _selectedRatio.canonicalHeight,
+                        child: RepaintBoundary(
+                          key: widget.repaintKey,
+                          child: SoundCapsuleShareCard(
+                            stats: widget.stats,
+                            palette: activePalette,
+                            aspectRatio: _selectedRatio,
+                          ),
                         ),
                       ),
                     ),
@@ -954,40 +963,58 @@ class _ShareModalState extends State<_ShareModal> {
 
                   const SizedBox(height: 16),
 
-                  // Theme Palette Picker
-                  Align(
-                    alignment: Alignment.centerLeft,
-                    child: Text(
-                      'SELECT PALETTE',
-                      style: RetroTypography.pixelBadge(
-                        color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
-                        fontSize: 8.5,
-                      ),
+                  // Theme Palette Picker (App Palettes)
+                  Text(
+                    'APP PALETTE THEME',
+                    style: RetroTypography.pixelBadge(
+                      color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
+                      fontSize: 8.5,
                     ),
                   ),
                   const SizedBox(height: 8),
                   Wrap(
                     spacing: 8,
                     runSpacing: 8,
-                    children: ShareCardTheme.values.map((t) {
-                      final isSelected = t == _selectedTheme;
+                    children: allPalettes.map((p) {
+                      final isSelected = p.id == activePalette.id;
                       return GestureDetector(
-                        onTap: () => setState(() => _selectedTheme = t),
+                        onTap: () => setState(() => _selectedPalette = p),
                         child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
                           decoration: BoxDecoration(
-                            gradient: LinearGradient(colors: t.colors),
+                            color: p.card,
                             border: Border.all(
-                              color: isSelected ? const Color(0xFF00FFCC) : Colors.white24,
+                              color: isSelected ? theme.colorScheme.primary : retro.borderColor,
                               width: isSelected ? 2.0 : 1.0,
                             ),
                           ),
-                          child: Text(
-                            t.label.toUpperCase(),
-                            style: RetroTypography.pixelBadge(
-                              color: Colors.white,
-                              fontSize: 8.5,
-                            ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Row(
+                                children: p.swatchColors
+                                    .map((c) => Container(
+                                          width: 9,
+                                          height: 9,
+                                          margin: const EdgeInsets.only(right: 2),
+                                          decoration: BoxDecoration(
+                                            color: c,
+                                            border: Border.all(color: Colors.black26, width: 0.5),
+                                          ),
+                                        ))
+                                    .toList(),
+                              ),
+                              const SizedBox(width: 6),
+                              Text(
+                                p.name,
+                                style: RetroTypography.pixelBadge(
+                                  color: isSelected
+                                      ? theme.colorScheme.primary
+                                      : p.textPrimary,
+                                  fontSize: 8,
+                                ),
+                              ),
+                            ],
                           ),
                         ),
                       );
@@ -997,14 +1024,11 @@ class _ShareModalState extends State<_ShareModal> {
                   const SizedBox(height: 16),
 
                   // Aspect Ratio Picker
-                  Align(
-                    alignment: Alignment.centerLeft,
-                    child: Text(
-                      'ASPECT RATIO',
-                      style: RetroTypography.pixelBadge(
-                        color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
-                        fontSize: 8.5,
-                      ),
+                  Text(
+                    'ASPECT RATIO',
+                    style: RetroTypography.pixelBadge(
+                      color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
+                      fontSize: 8.5,
                     ),
                   ),
                   const SizedBox(height: 8),
@@ -1044,21 +1068,23 @@ class _ShareModalState extends State<_ShareModal> {
 
                   // Action Buttons
                   if (_isCapturing) ...[
-                    const CircularProgressIndicator(),
+                    const Center(child: CircularProgressIndicator()),
                     const SizedBox(height: 8),
-                    Text(
-                      'GENERATING IMAGE...',
-                      style: RetroTypography.pixelBadge(
-                        color: theme.colorScheme.onSurface,
-                        fontSize: 9,
+                    Center(
+                      child: Text(
+                        'GENERATING IMAGE...',
+                        style: RetroTypography.pixelBadge(
+                          color: theme.colorScheme.onSurface,
+                          fontSize: 9,
+                        ),
                       ),
                     ),
                   ] else ...[
                     RetroButton(
                       label: 'SHARE IMAGE',
-                      icon: const RetroIcon('sound_capsule', size: 14, color: Colors.black),
-                      backgroundColor: const Color(0xFF00FFCC),
-                      textColor: Colors.black,
+                      icon: const RetroIcon('share', size: 14, color: Colors.black),
+                      backgroundColor: theme.colorScheme.primary,
+                      textColor: theme.colorScheme.onPrimary,
                       onPressed: _handleShare,
                     ),
                     const SizedBox(height: 8),
@@ -1084,6 +1110,7 @@ class _ShareModalState extends State<_ShareModal> {
         repaintKey: widget.repaintKey,
         cardName: widget.stats.periodLabel.replaceAll(' ', '_'),
         shareText: '🎧 My ${widget.stats.periodLabel} Sound Capsule on myMusic!',
+        pixelRatio: 2.4,
       );
     } catch (e) {
       if (mounted) {
@@ -1100,6 +1127,7 @@ class _ShareModalState extends State<_ShareModal> {
       await ShareCaptureService.saveToGallery(
         repaintKey: widget.repaintKey,
         cardName: widget.stats.periodLabel.replaceAll(' ', '_'),
+        pixelRatio: 2.4,
       );
       if (mounted) {
         RetroToast.show(context, 'Saved to gallery!', icon: 'check');

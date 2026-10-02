@@ -9,14 +9,22 @@ import 'package:share_plus/share_plus.dart';
 
 /// Aspect ratio options for share card images.
 enum ShareAspectRatio {
-  story(9, 16, 'Story (9:16)'),
-  square(1, 1, 'Square (1:1)'),
-  wide(19, 10, 'Wide (1.9:1)');
+  story(9, 16, 'Story (9:16)', 450, 800),
+  square(1, 1, 'Square (1:1)', 580, 580),
+  wide(19, 10, 'Wide (1.9:1)', 760, 400);
 
-  const ShareAspectRatio(this.widthRatio, this.heightRatio, this.label);
+  const ShareAspectRatio(
+    this.widthRatio,
+    this.heightRatio,
+    this.label,
+    this.canonicalWidth,
+    this.canonicalHeight,
+  );
   final int widthRatio;
   final int heightRatio;
   final String label;
+  final double canonicalWidth;
+  final double canonicalHeight;
 
   double get aspectValue => widthRatio / heightRatio;
 }
