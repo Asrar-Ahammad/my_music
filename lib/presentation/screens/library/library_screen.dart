@@ -16,6 +16,7 @@ import '../../widgets/scan_options_dialog.dart';
 import '../home_scaffold.dart';
 import '../../../data/services/storage_service.dart';
 import '../settings/settings_screen.dart';
+import '../sound_capsule/sound_capsule_screen.dart';
 import 'tabs/all_songs_tab.dart';
 import 'tabs/albums_tab.dart';
 import 'tabs/artists_tab.dart';
@@ -1426,6 +1427,16 @@ class _LibraryTabsScreenState extends ConsumerState<_LibraryTabsScreen>
           ),
         ),
         actions: [
+          IconButton(
+            icon: RetroIcon('sound_capsule', size: 20, color: theme.colorScheme.onSurface),
+            tooltip: 'Sound Capsule',
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const SoundCapsuleScreen()),
+              );
+            },
+          ),
           IconButton(
             icon: RetroIcon('settings', size: 20, color: theme.colorScheme.onSurface),
             tooltip: 'Settings',

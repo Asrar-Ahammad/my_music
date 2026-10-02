@@ -1,6 +1,6 @@
 # myMusic — Complete Technical Architecture & Project Details
 
-> **Version:** 2.1.0+12 · **Platform:** Android & iOS (Flutter / Dart) · **Engine:** `just_audio` + `audio_service`  
+> **Version:** 2.2.0+13 · **Platform:** Android & iOS (Flutter / Dart) · **Engine:** `just_audio` + `audio_service`  
 > **Aesthetic:** Pure Retro 8-Bit & Industrial Arcade (Chunky Pixel Borders · Zero Shadow · Pixel Badges)  
 > **AI Engine:** 100% On-Device Local Inference · **Physics:** 120Hz Natural Ballistic Momentum
 

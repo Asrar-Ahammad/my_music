@@ -3,7 +3,7 @@ class AppConstants {
   AppConstants._();
 
   static const String appName = "MyMusic";
-  static const String appVersion = "2.1.0";
+  static const String appVersion = "2.2.0";
   static const String appTagline = "OFFLINE HI-RES AUDIO";
 
   // Hive Box Names
@@ -36,6 +36,12 @@ class AppConstants {
   // Library Auto-Tagger keys
   static const String keyAutoTaggerEnabled = "ai_auto_tagger_enabled";
   static const String aiSongTagsBox = "ai_song_tags_box";
+
+  // Sound Capsule keys
+  static const String listeningHistoryBox = "listening_history_box";
+  static const String soundCapsuleSnapshotsBox = "sound_capsule_snapshots_box";
+  static const String keyListeningHistoryRetentionMonths = "listening_history_retention_months";
+  static const int defaultHistoryRetentionMonths = 12;
 
   // Bundled 8-bit tracks
   static const List<Map<String, String>> sampleTracks = [

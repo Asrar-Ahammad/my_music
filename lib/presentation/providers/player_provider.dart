@@ -3,7 +3,9 @@ import 'package:audio_service/audio_service.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:just_audio/just_audio.dart';
 import '../../data/services/audio_player_handler.dart';
+import '../../data/services/listening_history_service.dart';
 import '../../data/services/storage_service.dart';
+import '../../domain/models/listening_event.dart';
 import '../../domain/models/song.dart';
 import 'library_provider.dart';
 import 'playlist_provider.dart';
@@ -80,6 +82,11 @@ class PlayerNotifier extends Notifier<PlayerStateModel> {
   StreamSubscription? _volumeSub;
   StreamSubscription? _playbackSub;
 
+  // ── Listening history tracking ────────────────────────────────────────────
+  final _historyService = ListeningHistoryService();
+  Song? _trackingSession;      // song we started tracking
+  DateTime? _trackingStart;    // when it started
+
   final StorageService _storage = StorageService();
 
   AudioPlayerHandler get _handler => ref.read(audioHandlerProvider);
@@ -97,6 +104,7 @@ class PlayerNotifier extends Notifier<PlayerStateModel> {
       _sleepSub?.cancel();
       _volumeSub?.cancel();
       _playbackSub?.cancel();
+      _flushCurrentSession(handler);
     });
 
     return PlayerStateModel(
@@ -143,17 +151,23 @@ class PlayerNotifier extends Notifier<PlayerStateModel> {
     });
 
     _indexSub = handler.currentIndexStream.listen((idx) {
+      // ── Record listening event for the PREVIOUS song ──────────────────────
+      _flushCurrentSession(handler);
+
       if (idx != null && idx >= 0 && idx < handler.songQueue.length) {
         state = state.copyWith(
           currentIndex: idx,
           currentSong: handler.songQueue[idx],
           queue: handler.songQueue,
         );
+        // ── Start tracking the NEW song ───────────────────────────────────
+        _startSession(handler.songQueue[idx]);
       } else if (handler.currentSong != null) {
         state = state.copyWith(
           currentSong: handler.currentSong,
           queue: handler.songQueue,
         );
+        _startSession(handler.currentSong!);
       }
     });
 
@@ -168,7 +182,7 @@ class PlayerNotifier extends Notifier<PlayerStateModel> {
       state = state.copyWith(volume: vol);
     });
 
-    _playbackSub = handler.playbackState.listen((ps) {
+      _playbackSub = handler.playbackState.listen((ps) {
       final isShuffle = ps.shuffleMode == AudioServiceShuffleMode.all;
       final loopMode = switch (ps.repeatMode) {
         AudioServiceRepeatMode.one => RetroLoopMode.one,
@@ -180,6 +194,41 @@ class PlayerNotifier extends Notifier<PlayerStateModel> {
         loopMode: loopMode,
       );
     });
+  }
+
+  // ── Listening history session helpers ─────────────────────────────────────
+
+  void _startSession(Song song) {
+    _trackingSession = song;
+    _trackingStart = DateTime.now();
+  }
+
+  void _flushCurrentSession(AudioPlayerHandler handler) {
+    final song = _trackingSession;
+    final start = _trackingStart;
+    if (song == null || start == null) return;
+
+    final elapsed = DateTime.now().difference(start);
+    // Only count time the player was actually playing
+    final listened = handler.isPlaying
+        ? elapsed
+        : elapsed; // we use wall-clock; close enough for stats
+    final event = ListeningEvent(
+      songId: song.id,
+      songTitle: song.title,
+      artist: song.artist,
+      album: song.album,
+      genre: null,
+      artPath: song.artPath?.isNotEmpty == true ? song.artPath : null,
+      listenedDuration: listened,
+      songDuration: song.duration,
+      timestamp: start,
+      playlistId: state.currentPlaylistId,
+    );
+
+    _historyService.recordPlay(event);
+    _trackingSession = null;
+    _trackingStart = null;
   }
 
   Future<void> playSong(

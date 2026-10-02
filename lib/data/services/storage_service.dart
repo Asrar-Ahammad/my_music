@@ -2,6 +2,7 @@ import 'package:hive_flutter/hive_flutter.dart';
 import '../../core/constants/app_constants.dart';
 import '../../domain/models/playlist.dart';
 import '../../domain/models/song.dart';
+import 'listening_history_service.dart';
 
 /// Hive-based local storage service for fast, offline persistence.
 class StorageService {
@@ -35,6 +36,11 @@ class StorageService {
     } catch (_) {}
     try {
       _aiSongTagsBox = await Hive.openBox(AppConstants.aiSongTagsBox);
+    } catch (_) {}
+    try {
+      await ListeningHistoryService().init();
+      await ListeningHistoryService().pruneOldEvents(
+          retentionMonths: AppConstants.defaultHistoryRetentionMonths);
     } catch (_) {}
   }
 
