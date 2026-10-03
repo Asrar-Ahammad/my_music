@@ -283,6 +283,26 @@ class RetroAlbumArt extends StatelessWidget {
         ? (height! * 2.5).round().clamp(64, 640)
         : 256;
 
+    // ── Network URL (e.g. artist photos from Deezer/iTunes) ──────────────────
+    if (normalizedPath.startsWith('http://') || normalizedPath.startsWith('https://')) {
+      final img = Image.network(
+        normalizedPath,
+        width: width,
+        height: height,
+        cacheWidth: targetCacheWidth,
+        cacheHeight: targetCacheHeight,
+        fit: fit,
+        gaplessPlayback: true,
+        filterQuality: FilterQuality.medium,
+        errorBuilder: (_, _, _) => buildPlaceholder(),
+        loadingBuilder: (context, child, loadingProgress) {
+          if (loadingProgress == null) return child;
+          return buildPlaceholder();
+        },
+      );
+      return wrapWithBorder(img);
+    }
+
     // ── Asset paths — always synchronous ─────────────────────────────────────
     if (normalizedPath.startsWith('assets/')) {
       Widget img;
@@ -366,7 +386,9 @@ class RetroAlbumArt extends StatelessWidget {
     if (clean.toLowerCase().endsWith('.svg')) return;
 
     final ImageProvider provider;
-    if (clean.startsWith('assets/')) {
+    if (clean.startsWith('http://') || clean.startsWith('https://')) {
+      provider = ResizeImage(NetworkImage(clean), width: 300, height: 300);
+    } else if (clean.startsWith('assets/')) {
       provider = ResizeImage(AssetImage(clean), width: 300, height: 300);
     } else {
       if (_FileExistenceCache.instance.isKnownMissing(clean)) return;

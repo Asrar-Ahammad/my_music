@@ -5,6 +5,7 @@ import '../../domain/models/sound_capsule_stats.dart';
 
 /// State for the Sound Capsule provider.
 class SoundCapsuleState {
+  final List<SoundCapsuleStats> monthlyCapsules;
   final SoundCapsuleStats? stats;
   final bool isLoading;
   final String? error;
@@ -13,6 +14,7 @@ class SoundCapsuleState {
   final List<DateTime> availableMonths;
 
   const SoundCapsuleState({
+    this.monthlyCapsules = const [],
     this.stats,
     this.isLoading = false,
     this.error,
@@ -22,6 +24,7 @@ class SoundCapsuleState {
   });
 
   SoundCapsuleState copyWith({
+    List<SoundCapsuleStats>? monthlyCapsules,
     SoundCapsuleStats? stats,
     bool? isLoading,
     String? error,
@@ -30,6 +33,7 @@ class SoundCapsuleState {
     List<DateTime>? availableMonths,
   }) {
     return SoundCapsuleState(
+      monthlyCapsules: monthlyCapsules ?? this.monthlyCapsules,
       stats: stats ?? this.stats,
       isLoading: isLoading ?? this.isLoading,
       error: error,
@@ -63,11 +67,40 @@ class SoundCapsuleNotifier extends Notifier<SoundCapsuleState> {
     state = state.copyWith(isLoading: true, error: null);
     try {
       final months = await Future(() => _repo.getAvailableMonths());
+      final now = DateTime.now();
+      final currentMonth = DateTime(now.year, now.month);
+
+      final allMonths = <DateTime>[];
+      allMonths.addAll(months);
+      // Also check current month if not in available months
+      if (!allMonths.any((m) => m.year == currentMonth.year && m.month == currentMonth.month)) {
+        allMonths.add(currentMonth);
+      }
+
+      // Deduplicate by year and month
+      final uniqueMonths = <String, DateTime>{};
+      for (final m in allMonths) {
+        uniqueMonths['${m.year}-${m.month}'] = m;
+      }
+      final sortedMonths = uniqueMonths.values.toList()
+        ..sort((a, b) => b.compareTo(a));
+
+      // Compute capsules and ONLY keep months that actually have data
+      final capsules = await Future(() {
+        return sortedMonths
+            .map((m) => _repo.getMonthlyStats(m.year, m.month))
+            .where((c) => c.hasData)
+            .toList();
+      });
+
+      final availableMonthsWithData = capsules.map((c) => c.periodStart).toList();
+
       final stats = await Future(() => _computeStats());
       state = state.copyWith(
         isLoading: false,
         stats: stats,
-        availableMonths: months,
+        monthlyCapsules: capsules,
+        availableMonths: availableMonthsWithData,
       );
     } catch (e) {
       state = state.copyWith(

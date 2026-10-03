@@ -209,10 +209,13 @@ class PlayerNotifier extends Notifier<PlayerStateModel> {
     if (song == null || start == null) return;
 
     final elapsed = DateTime.now().difference(start);
-    // Only count time the player was actually playing
-    final listened = handler.isPlaying
-        ? elapsed
-        : elapsed; // we use wall-clock; close enough for stats
+    // Only count time up to song duration
+    var listened = elapsed;
+    if (song.duration > Duration.zero && listened > song.duration) {
+      listened = song.duration;
+    } else if (listened > const Duration(minutes: 30)) {
+      listened = const Duration(minutes: 30);
+    }
     final event = ListeningEvent(
       songId: song.id,
       songTitle: song.title,

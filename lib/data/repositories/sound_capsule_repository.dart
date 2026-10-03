@@ -1,5 +1,6 @@
 import '../../domain/models/listening_event.dart';
 import '../../domain/models/sound_capsule_stats.dart';
+import '../services/artist_photo_service.dart';
 import '../services/listening_history_service.dart';
 
 /// Aggregates raw [ListeningEvent]s into [SoundCapsuleStats] for a given period.
@@ -61,6 +62,8 @@ class SoundCapsuleRepository {
     final artistTime = <String, Duration>{};
     final artistCount = <String, int>{};
     final artistArt = <String, String?>{};
+    final artistSongTime = <String, Map<String, Duration>>{};
+    final artistSongArt = <String, Map<String, String?>>{};
 
     final songTime = <String, Duration>{};
     final songCount = <String, int>{};
@@ -82,37 +85,54 @@ class SoundCapsuleRepository {
     final artistByDay = <String, Set<String>>{}; // dateStr → set of artist ids
 
     for (final e in events) {
-      totalTime += e.listenedDuration;
+      Duration duration = e.listenedDuration;
+      if (e.songDuration > Duration.zero && duration > e.songDuration) {
+        duration = e.songDuration;
+      } else if (duration > const Duration(minutes: 30)) {
+        duration = const Duration(minutes: 30);
+      }
+
+      final primaryArtist = ArtistPhotoService.extractPrimaryArtist(e.artist);
+
+      totalTime += duration;
       uniqueSongs.add(e.songId);
-      uniqueArtists.add(e.artist);
+      uniqueArtists.add(primaryArtist);
       uniqueAlbums.add(e.album);
 
       final dayStr = _dayKey(e.timestamp);
       activeDays.add(dayStr);
 
       // Artist
-      artistTime[e.artist] =
-          (artistTime[e.artist] ?? Duration.zero) + e.listenedDuration;
-      artistCount[e.artist] = (artistCount[e.artist] ?? 0) + 1;
-      artistArt.putIfAbsent(e.artist, () => e.artPath);
+      artistTime[primaryArtist] =
+          (artistTime[primaryArtist] ?? Duration.zero) + duration;
+      artistCount[primaryArtist] = (artistCount[primaryArtist] ?? 0) + 1;
+
+      // Artist song tracking for top song cover art
+      artistSongTime.putIfAbsent(primaryArtist, () => {});
+      artistSongTime[primaryArtist]![e.songId] =
+          (artistSongTime[primaryArtist]![e.songId] ?? Duration.zero) + duration;
+      if (e.artPath != null && e.artPath!.isNotEmpty) {
+        artistSongArt.putIfAbsent(primaryArtist, () => {});
+        artistSongArt[primaryArtist]![e.songId] = e.artPath;
+      }
 
       // Song
       songTime[e.songId] =
-          (songTime[e.songId] ?? Duration.zero) + e.listenedDuration;
+          (songTime[e.songId] ?? Duration.zero) + duration;
       songCount[e.songId] = (songCount[e.songId] ?? 0) + 1;
       songMeta.putIfAbsent(e.songId, () => e);
 
       // Album
       albumTime[e.album] =
-          (albumTime[e.album] ?? Duration.zero) + e.listenedDuration;
+          (albumTime[e.album] ?? Duration.zero) + duration;
       albumCount[e.album] = (albumCount[e.album] ?? 0) + 1;
       albumArt.putIfAbsent(e.album, () => e.artPath);
-      albumArtist.putIfAbsent(e.album, () => e.artist);
+      albumArtist.putIfAbsent(e.album, () => primaryArtist);
 
       // Genre
       if (e.genre != null && e.genre!.isNotEmpty) {
         genreTime[e.genre!] =
-            (genreTime[e.genre!] ?? Duration.zero) + e.listenedDuration;
+            (genreTime[e.genre!] ?? Duration.zero) + duration;
         genreCount[e.genre!] = (genreCount[e.genre!] ?? 0) + 1;
       }
 
@@ -122,11 +142,27 @@ class SoundCapsuleRepository {
 
       // Day of week
       dayCount[e.timestamp.weekday] =
-          (dayCount[e.timestamp.weekday] ?? Duration.zero) + e.listenedDuration;
+          (dayCount[e.timestamp.weekday] ?? Duration.zero) + duration;
 
       // Artist streak data
       artistByDay.putIfAbsent(dayStr, () => {});
-      artistByDay[dayStr]!.add(e.artist);
+      artistByDay[dayStr]!.add(primaryArtist);
+    }
+
+    // Pick top song's cover art as the artist profile photo
+    for (final artist in artistTime.keys) {
+      final songs = artistSongTime[artist];
+      if (songs != null && songs.isNotEmpty) {
+        final sortedSongIds = songs.keys.toList()
+          ..sort((a, b) => songs[b]!.compareTo(songs[a]!));
+        for (final songId in sortedSongIds) {
+          final art = artistSongArt[artist]?[songId];
+          if (art != null && art.isNotEmpty) {
+            artistArt[artist] = art;
+            break;
+          }
+        }
+      }
     }
 
     // ── Build ranked lists ───────────────────────────────────────────────────
@@ -406,8 +442,14 @@ class SoundCapsuleRepository {
     final dayCountMap = <String, int>{};
 
     for (final e in events) {
+      Duration duration = e.listenedDuration;
+      if (e.songDuration > Duration.zero && duration > e.songDuration) {
+        duration = e.songDuration;
+      } else if (duration > const Duration(minutes: 30)) {
+        duration = const Duration(minutes: 30);
+      }
       final k = _dayKey(e.timestamp);
-      dayMap[k] = (dayMap[k] ?? Duration.zero) + e.listenedDuration;
+      dayMap[k] = (dayMap[k] ?? Duration.zero) + duration;
       dayCountMap[k] = (dayCountMap[k] ?? 0) + 1;
     }
 

@@ -139,6 +139,52 @@ class SoundCapsuleStats {
   /// Whether this capsule has enough data to be useful.
   bool get hasData => totalTracksPlayed >= 1;
 
+  SoundCapsuleStats copyWith({
+    DateTime? periodStart,
+    DateTime? periodEnd,
+    CapsulePeriod? period,
+    Duration? totalListeningTime,
+    int? totalTracksPlayed,
+    int? uniqueTracksPlayed,
+    int? uniqueArtists,
+    int? uniqueAlbums,
+    int? daysActive,
+    List<RankedItem>? topArtists,
+    List<RankedItem>? topSongs,
+    List<RankedItem>? topAlbums,
+    List<RankedItem>? topGenres,
+    ArtistStreak? longestStreak,
+    List<UnlikelyCombo>? unlikelyCombos,
+    List<RankedItem>? throwbacks,
+    DayOfWeek? mostActiveDay,
+    int? peakHour,
+    List<DailyListeningStats>? dailyStats,
+    Map<String, Duration>? qualityBreakdown,
+  }) {
+    return SoundCapsuleStats(
+      periodStart: periodStart ?? this.periodStart,
+      periodEnd: periodEnd ?? this.periodEnd,
+      period: period ?? this.period,
+      totalListeningTime: totalListeningTime ?? this.totalListeningTime,
+      totalTracksPlayed: totalTracksPlayed ?? this.totalTracksPlayed,
+      uniqueTracksPlayed: uniqueTracksPlayed ?? this.uniqueTracksPlayed,
+      uniqueArtists: uniqueArtists ?? this.uniqueArtists,
+      uniqueAlbums: uniqueAlbums ?? this.uniqueAlbums,
+      daysActive: daysActive ?? this.daysActive,
+      topArtists: topArtists ?? this.topArtists,
+      topSongs: topSongs ?? this.topSongs,
+      topAlbums: topAlbums ?? this.topAlbums,
+      topGenres: topGenres ?? this.topGenres,
+      longestStreak: longestStreak ?? this.longestStreak,
+      unlikelyCombos: unlikelyCombos ?? this.unlikelyCombos,
+      throwbacks: throwbacks ?? this.throwbacks,
+      mostActiveDay: mostActiveDay ?? this.mostActiveDay,
+      peakHour: peakHour ?? this.peakHour,
+      dailyStats: dailyStats ?? this.dailyStats,
+      qualityBreakdown: qualityBreakdown ?? this.qualityBreakdown,
+    );
+  }
+
   /// Human-readable total time, e.g. "2h 34m" or "47 min".
   String get formattedTotalTime {
     final h = totalListeningTime.inHours;

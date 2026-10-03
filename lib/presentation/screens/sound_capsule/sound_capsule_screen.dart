@@ -1,7 +1,9 @@
+import 'dart:async';
 import 'dart:math';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:intl/intl.dart';
 
 import '../../../core/theme/retro_colors.dart';
 import '../../../core/theme/retro_theme.dart';
@@ -13,9 +15,12 @@ import '../../providers/sound_capsule_provider.dart';
 import '../../widgets/retro_album_art.dart';
 import '../../widgets/retro_button.dart';
 import '../../widgets/retro_card.dart';
+import '../../widgets/retro_circle_avatar.dart';
 import '../../widgets/retro_icon.dart';
 import '../../widgets/retro_toast.dart';
 import 'sound_capsule_share_card.dart';
+import 'top_artists_screen.dart';
+import 'top_songs_screen.dart';
 
 /// The primary Sound Capsule screen displaying aggregated listening statistics,
 /// retro chart visualizations, and shareable summaries.
@@ -28,6 +33,58 @@ class SoundCapsuleScreen extends ConsumerStatefulWidget {
 
 class _SoundCapsuleScreenState extends ConsumerState<SoundCapsuleScreen> {
   final GlobalKey _shareCardKey = GlobalKey();
+  final Set<String> _expandedMonths = {};
+
+  late final ScrollController _scrollController;
+  bool _isScrolling = false;
+  double _scrollProgress = 0.0;
+  String _activeMonthLabel = '';
+  Timer? _scrollFadeTimer;
+
+  @override
+  void initState() {
+    super.initState();
+    _scrollController = ScrollController();
+    _scrollController.addListener(_onScroll);
+  }
+
+  @override
+  void dispose() {
+    _scrollFadeTimer?.cancel();
+    _scrollController.removeListener(_onScroll);
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  void _onScroll() {
+    if (!_scrollController.hasClients) return;
+    final maxScroll = _scrollController.position.maxScrollExtent;
+    if (maxScroll <= 0) return;
+
+    final progress = (_scrollController.offset / maxScroll).clamp(0.0, 1.0);
+    final capsules = ref.read(soundCapsuleProvider).monthlyCapsules;
+    String label = '';
+    if (capsules.isNotEmpty) {
+      final index = (progress * (capsules.length - 1)).round().clamp(0, capsules.length - 1);
+      final c = capsules[index];
+      label = '${c.periodLabel}, ${c.periodStart.year}';
+    }
+
+    setState(() {
+      _isScrolling = true;
+      _scrollProgress = progress;
+      if (label.isNotEmpty) _activeMonthLabel = label;
+    });
+
+    _scrollFadeTimer?.cancel();
+    _scrollFadeTimer = Timer(const Duration(milliseconds: 1400), () {
+      if (mounted) {
+        setState(() {
+          _isScrolling = false;
+        });
+      }
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -39,11 +96,15 @@ class _SoundCapsuleScreenState extends ConsumerState<SoundCapsuleScreen> {
     return Scaffold(
       backgroundColor: theme.scaffoldBackgroundColor,
       appBar: AppBar(
+        backgroundColor: theme.scaffoldBackgroundColor,
+        elevation: 0,
+        centerTitle: true,
         title: Text(
-          'SOUND CAPSULE',
+          'YOUR SOUND CAPSULE',
           style: RetroTypography.pixelHeader(
             color: theme.colorScheme.onSurface,
-            fontSize: 14,
+            fontSize: 13,
+            letterSpacing: 0.8,
           ),
         ),
         leading: IconButton(
@@ -52,140 +113,16 @@ class _SoundCapsuleScreenState extends ConsumerState<SoundCapsuleScreen> {
           onPressed: () => Navigator.pop(context),
         ),
         actions: [
-          if (state.stats != null && state.stats!.hasData)
-            IconButton(
-              icon: RetroIcon('share', size: 18, color: theme.colorScheme.onSurface),
-              tooltip: 'Share Capsule',
-              onPressed: () => _openShareSheet(context, state.stats!),
-            ),
+          IconButton(
+            icon: RetroIcon('info', size: 18, color: theme.colorScheme.onSurface),
+            tooltip: 'About Sound Capsule',
+            onPressed: () => _showAboutDialog(context, theme, retro),
+          ),
           const SizedBox(width: 8),
         ],
       ),
       body: SafeArea(
-        child: Column(
-          children: [
-            // Period Selector & Navigation Header
-            _buildPeriodControls(state, notifier, theme, retro),
-
-            // Main Content Area
-            Expanded(
-              child: _buildBody(state, notifier, theme, retro),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  // ── Period & Navigation Controls ──────────────────────────────────────────
-
-  Widget _buildPeriodControls(
-    SoundCapsuleState state,
-    SoundCapsuleNotifier notifier,
-    ThemeData theme,
-    RetroThemeTokens retro,
-  ) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      decoration: BoxDecoration(
-        color: retro.cardColor,
-        border: Border(
-          bottom: BorderSide(color: retro.borderColor, width: retro.borderWidth),
-        ),
-      ),
-      child: Column(
-        children: [
-          // Period Toggle (Monthly vs Weekly)
-          Row(
-            children: [
-              Expanded(
-                child: _buildPeriodTab(
-                  label: 'MONTHLY',
-                  isSelected: state.selectedPeriod == CapsulePeriod.monthly,
-                  onTap: () => notifier.switchPeriod(CapsulePeriod.monthly),
-                  theme: theme,
-                  retro: retro,
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: _buildPeriodTab(
-                  label: 'WEEKLY',
-                  isSelected: state.selectedPeriod == CapsulePeriod.weekly,
-                  onTap: () => notifier.switchPeriod(CapsulePeriod.weekly),
-                  theme: theme,
-                  retro: retro,
-                ),
-              ),
-            ],
-          ),
-
-          const SizedBox(height: 8),
-
-          // Date Navigator Row (< OCT 2026 >)
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              IconButton(
-                icon: RetroIcon('chevron_left', size: 16, color: theme.colorScheme.onSurface),
-                tooltip: 'Previous Period',
-                onPressed: notifier.goToPreviousPeriod,
-              ),
-              Expanded(
-                child: Text(
-                  state.stats?.periodLabel.toUpperCase() ??
-                      (state.selectedPeriod == CapsulePeriod.monthly
-                          ? '${_monthName(state.selectedDate.month)} ${state.selectedDate.year}'
-                          : 'THIS WEEK'),
-                  textAlign: TextAlign.center,
-                  style: RetroTypography.pixelHeader(
-                    color: theme.colorScheme.primary,
-                    fontSize: 12,
-                  ),
-                ),
-              ),
-              IconButton(
-                icon: RetroIcon(
-                  'chevron_right',
-                  size: 16,
-                  color: notifier.canGoNext ? theme.colorScheme.onSurface : Colors.white24,
-                ),
-                tooltip: 'Next Period',
-                onPressed: notifier.canGoNext ? notifier.goToNextPeriod : null,
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildPeriodTab({
-    required String label,
-    required bool isSelected,
-    required VoidCallback onTap,
-    required ThemeData theme,
-    required RetroThemeTokens retro,
-  }) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 8),
-        decoration: BoxDecoration(
-          color: isSelected ? theme.colorScheme.primary : Colors.transparent,
-          border: Border.all(
-            color: isSelected ? theme.colorScheme.primary : retro.borderColor,
-            width: retro.borderWidth,
-          ),
-        ),
-        alignment: Alignment.center,
-        child: Text(
-          label,
-          style: RetroTypography.pixelBadge(
-            color: isSelected ? theme.colorScheme.onPrimary : theme.colorScheme.onSurface,
-            fontSize: 9.5,
-          ),
-        ),
+        child: _buildBody(state, notifier, theme, retro),
       ),
     );
   }
@@ -203,7 +140,7 @@ class _SoundCapsuleScreenState extends ConsumerState<SoundCapsuleScreen> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const RetroIcon('sound_capsule', size: 36, color: Color(0xFF00FFCC)),
+            RetroIcon('sound_capsule', size: 36, color: retro.accentGreen),
             const SizedBox(height: 16),
             Text(
               'COMPUTING SOUND CAPSULE...',
@@ -245,42 +182,719 @@ class _SoundCapsuleScreenState extends ConsumerState<SoundCapsuleScreen> {
       );
     }
 
-    final stats = state.stats;
-    if (stats == null || !stats.hasData) {
+    final capsules = state.monthlyCapsules;
+    if (capsules.isEmpty) {
+      if (state.stats != null) {
+        return ListView(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          children: [
+            _buildMonthSection(context, state.stats!, theme, retro),
+          ],
+        );
+      }
       return _buildEmptyState(theme, retro);
     }
 
-    return ListView(
-      padding: const EdgeInsets.all(16),
+    final hasAnyData = capsules.any((c) => c.hasData);
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final availableHeight = constraints.maxHeight;
+        final pillTop = ((availableHeight - 50) * _scrollProgress).clamp(10.0, availableHeight - 50);
+
+        return Stack(
+          children: [
+            ListView.builder(
+              controller: _scrollController,
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              itemCount: capsules.length + (hasAnyData ? 0 : 1),
+              itemBuilder: (context, index) {
+                if (index < capsules.length) {
+                  final monthStats = capsules[index];
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 28),
+                    child: _buildMonthSection(context, monthStats, theme, retro),
+                  );
+                } else {
+                  return _buildListeningHintBanner(theme, retro);
+                }
+              },
+            ),
+
+            // Floating Scrollbar Tooltip Pill (matching reference image)
+            if (capsules.length > 1 && _activeMonthLabel.isNotEmpty)
+              AnimatedPositioned(
+                duration: const Duration(milliseconds: 50),
+                right: 8,
+                top: pillTop,
+                child: AnimatedOpacity(
+                  duration: const Duration(milliseconds: 200),
+                  opacity: _isScrolling ? 1.0 : 0.0,
+                  child: GestureDetector(
+                    onVerticalDragUpdate: (details) {
+                      if (!_scrollController.hasClients) return;
+                      final maxScroll = _scrollController.position.maxScrollExtent;
+                      if (maxScroll <= 0) return;
+                      final newTop = (pillTop + details.delta.dy).clamp(10.0, availableHeight - 50);
+                      final newProgress = (newTop - 10) / (availableHeight - 60);
+                      final targetOffset = newProgress * maxScroll;
+                      _scrollController.jumpTo(targetOffset.clamp(0.0, maxScroll));
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF161B22),
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(
+                          color: retro.borderColor.withValues(alpha: 0.5),
+                          width: 1.2,
+                        ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.5),
+                            blurRadius: 10,
+                            offset: const Offset(0, 3),
+                          ),
+                        ],
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            _activeMonthLabel,
+                            style: RetroTypography.pixelBadge(
+                              color: Colors.white,
+                              fontSize: 10,
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          const Icon(
+                            Icons.unfold_more_rounded,
+                            size: 15,
+                            color: Colors.white70,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+          ],
+        );
+      },
+    );
+  }
+
+  // ── Month Capsule Section ──────────────────────────────────────────────────
+
+  Widget _buildMonthSection(
+    BuildContext context,
+    SoundCapsuleStats stats,
+    ThemeData theme,
+    RetroThemeTokens retro,
+  ) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // 1. Hero Listening Time Card
-        _buildHeroCard(stats, theme, retro),
+        // Month Header Row: "October 2026 ?" + Share
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 6),
+          child: Row(
+            children: [
+              RichText(
+                text: TextSpan(
+                  children: [
+                    TextSpan(
+                      text: '${_monthName(stats.periodStart.month)} ',
+                      style: RetroTypography.pixelHeader(
+                        color: theme.colorScheme.onSurface,
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    TextSpan(
+                      text: '${stats.periodStart.year}',
+                      style: RetroTypography.pixelHeader(
+                        color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
+                        fontSize: 16,
+                        fontWeight: FontWeight.normal,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              GestureDetector(
+                onTap: () => _openMonthDetails(context, stats, theme, retro),
+                child: Container(
+                  width: 18,
+                  height: 18,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                      color: theme.colorScheme.onSurface.withValues(alpha: 0.4),
+                      width: 1.2,
+                    ),
+                  ),
+                  child: Text(
+                    '?',
+                    style: TextStyle(
+                      color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ),
+              const Spacer(),
+              IconButton(
+                icon: RetroIcon(
+                  'share',
+                  size: 18,
+                  color: theme.colorScheme.onSurface,
+                ),
+                tooltip: 'Share Capsule',
+                onPressed: () => _openShareSheet(context, stats),
+              ),
+            ],
+          ),
+        ),
 
-        const SizedBox(height: 16),
+        const SizedBox(height: 8),
 
-        // 2. Top Artists Card
-        _buildTopArtistsCard(stats, theme, retro),
+        // Time Listened Card (Accordion toggle)
+        Builder(
+          builder: (context) {
+            final monthKey = '${stats.periodStart.year}-${stats.periodStart.month}';
+            final isExpanded = _expandedMonths.contains(monthKey);
 
-        const SizedBox(height: 16),
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                GestureDetector(
+                  onTap: () {
+                    setState(() {
+                      if (isExpanded) {
+                        _expandedMonths.remove(monthKey);
+                      } else {
+                        _expandedMonths.add(monthKey);
+                      }
+                    });
+                  },
+                  child: Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
+                    decoration: BoxDecoration(
+                      color: retro.cardColor,
+                      border: Border.all(
+                        color: retro.borderColor,
+                        width: retro.borderWidth,
+                      ),
+                      borderRadius: BorderRadius.circular(retro.borderRadius),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Text(
+                              'Time listened',
+                              style: RetroTypography.pixelBadge(
+                                color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
+                                fontSize: 9,
+                              ),
+                            ),
+                            const Spacer(),
+                            AnimatedRotation(
+                              turns: isExpanded ? 0.25 : 0.0,
+                              duration: const Duration(milliseconds: 200),
+                              child: RetroIcon(
+                                'chevron_right',
+                                size: 14,
+                                color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 10),
+                        Text(
+                          '${NumberFormat('#,###').format(stats.totalListeningTime.inMinutes)} minutes',
+                          style: RetroTypography.pixelHeader(
+                            color: retro.accentGreen,
+                            fontSize: 22,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
 
-        // 3. Top Songs Card
-        _buildTopSongsCard(stats, theme, retro),
+                // Inline Accordion Graph
+                if (isExpanded) ...[
+                  const SizedBox(height: 8),
+                  _buildTimeListenedAccordion(context, stats, theme, retro),
+                ],
+              ],
+            );
+          },
+        ),
 
-        const SizedBox(height: 16),
+        const SizedBox(height: 12),
 
-        // 4. Daily Activity Bar Chart
-        if (stats.dailyStats.isNotEmpty) ...[
-          _buildActivityChartCard(stats, theme, retro),
-          const SizedBox(height: 16),
-        ],
-
-        // 5. Vibe & Insights Card
-        _buildInsightsCard(stats, theme, retro),
-
-        const SizedBox(height: 16),
+        // Side-by-side Top Artist and Top Song cards
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              child: _buildTopArtistCard(context, stats, theme, retro),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: _buildTopSongCard(context, stats, theme, retro),
+            ),
+          ],
+        ),
       ],
     );
   }
+
+  // ── Time Listened Accordion ────────────────────────────────────────────────
+
+  Widget _buildTimeListenedAccordion(
+    BuildContext context,
+    SoundCapsuleStats stats,
+    ThemeData theme,
+    RetroThemeTokens retro,
+  ) {
+    final dailyStats = stats.dailyStats;
+    final totalMin = stats.totalListeningTime.inMinutes;
+    final daysActive = stats.daysActive;
+    final avgMin = daysActive > 0 ? (totalMin / daysActive).round() : 0;
+
+    double maxMinutes = 0;
+    for (final d in dailyStats) {
+      if (d.totalTime.inMinutes > maxMinutes) {
+        maxMinutes = d.totalTime.inMinutes.toDouble();
+      }
+    }
+    if (maxMinutes <= 0) maxMinutes = 60;
+    final effectiveMax = (maxMinutes * 1.15).ceilToDouble();
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: retro.cardColor,
+        border: Border.all(
+          color: retro.borderColor,
+          width: retro.borderWidth,
+        ),
+        borderRadius: BorderRadius.circular(retro.borderRadius),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            '${_monthName(stats.periodStart.month)} ${stats.periodStart.year}',
+            style: RetroTypography.pixelBadge(
+              color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
+              fontSize: 10,
+            ),
+          ),
+          const SizedBox(height: 8),
+          RichText(
+            text: TextSpan(
+              style: RetroTypography.pixelHeader(
+                color: theme.colorScheme.onSurface,
+                fontSize: 13,
+                height: 1.4,
+              ),
+              children: [
+                const TextSpan(text: 'You listened to music for '),
+                TextSpan(
+                  text: '$totalMin minutes',
+                  style: RetroTypography.pixelHeader(
+                    color: retro.accentGreen,
+                    fontSize: 13,
+                    height: 1.4,
+                  ),
+                ),
+                TextSpan(
+                  text: stats.period == CapsulePeriod.weekly ? ' this week.' : ' this month.',
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            'Daily average: $avgMin min',
+            style: RetroTypography.pixelBadge(
+              color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
+              fontSize: 9,
+            ),
+          ),
+          const SizedBox(height: 24),
+
+          // Daily Listening Bar Chart
+          SizedBox(
+            height: 130,
+            child: Stack(
+              children: [
+                // Horizontal lines: Max and Average
+                Positioned.fill(
+                  child: LayoutBuilder(
+                    builder: (context, constraints) {
+                      final chartH = constraints.maxHeight - 20;
+                      final avgY = chartH - (avgMin / effectiveMax * chartH).clamp(0.0, chartH);
+
+                      return Stack(
+                        children: [
+                          // Max line at top
+                          Positioned(
+                            top: 0,
+                            left: 0,
+                            right: 40,
+                            child: Container(
+                              height: 1,
+                              color: Colors.white12,
+                            ),
+                          ),
+                          // Average line with badge
+                          if (avgMin > 0) ...[
+                            Positioned(
+                              top: avgY,
+                              left: 0,
+                              right: 40,
+                              child: Row(
+                                children: [
+                                  Expanded(
+                                    child: Container(
+                                      height: 1,
+                                      color: Colors.white24,
+                                    ),
+                                  ),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
+                                    decoration: BoxDecoration(
+                                      color: Colors.white,
+                                      borderRadius: BorderRadius.circular(4),
+                                    ),
+                                    child: Text(
+                                      '$avgMin min',
+                                      style: RetroTypography.pixelBadge(
+                                        color: Colors.black,
+                                        fontSize: 8,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                          // Baseline
+                          Positioned(
+                            top: chartH,
+                            left: 0,
+                            right: 40,
+                            child: Container(
+                              height: 1,
+                              color: Colors.white12,
+                            ),
+                          ),
+                          // Right Y-axis labels
+                          Positioned(
+                            top: 0,
+                            right: 0,
+                            width: 36,
+                            child: Text(
+                              '${effectiveMax.toInt()}',
+                              textAlign: TextAlign.right,
+                              style: RetroTypography.pixelBadge(
+                                color: theme.colorScheme.onSurface.withValues(alpha: 0.4),
+                                fontSize: 8.5,
+                              ),
+                            ),
+                          ),
+                          Positioned(
+                            top: chartH - 12,
+                            right: 0,
+                            width: 36,
+                            child: Text(
+                              '0',
+                              textAlign: TextAlign.right,
+                              style: RetroTypography.pixelBadge(
+                                color: theme.colorScheme.onSurface.withValues(alpha: 0.4),
+                                fontSize: 8.5,
+                              ),
+                            ),
+                          ),
+                        ],
+                      );
+                    },
+                  ),
+                ),
+
+                // Bars
+                Positioned(
+                  left: 0,
+                  right: 40,
+                  top: 0,
+                  bottom: 20,
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                    children: [
+                      for (int i = 0; i < (dailyStats.isNotEmpty ? dailyStats.length : 30); i++) ...[
+                        Builder(
+                          builder: (context) {
+                            final stat = i < dailyStats.length ? dailyStats[i] : null;
+                            final min = stat?.totalTime.inMinutes ?? 0;
+                            final fraction = (min / effectiveMax).clamp(0.03, 1.0);
+
+                            return Expanded(
+                              child: Container(
+                                margin: const EdgeInsets.symmetric(horizontal: 1.0),
+                                height: 110 * fraction,
+                                decoration: BoxDecoration(
+                                  color: min > 0
+                                      ? retro.accentGreen
+                                      : retro.accentGreen.withValues(alpha: 0.15),
+                                  borderRadius: const BorderRadius.vertical(top: Radius.circular(2)),
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+
+                // X-axis Day labels (1, 8, 15, 22, 29)
+                Positioned(
+                  left: 0,
+                  right: 40,
+                  bottom: 0,
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text('1', style: RetroTypography.pixelBadge(color: Colors.white54, fontSize: 8.5)),
+                      Text('8', style: RetroTypography.pixelBadge(color: Colors.white54, fontSize: 8.5)),
+                      Text('15', style: RetroTypography.pixelBadge(color: Colors.white54, fontSize: 8.5)),
+                      Text('22', style: RetroTypography.pixelBadge(color: Colors.white54, fontSize: 8.5)),
+                      Text('29', style: RetroTypography.pixelBadge(color: Colors.white54, fontSize: 8.5)),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ── Top Artist Card ────────────────────────────────────────────────────────
+
+  Widget _buildTopArtistCard(
+    BuildContext context,
+    SoundCapsuleStats stats,
+    ThemeData theme,
+    RetroThemeTokens retro,
+  ) {
+    final topArtist = stats.topArtists.firstOrNull;
+
+    return GestureDetector(
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => TopArtistsScreen(stats: stats),
+          ),
+        );
+      },
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: retro.cardColor,
+          border: Border.all(
+            color: retro.borderColor,
+            width: retro.borderWidth,
+          ),
+          borderRadius: BorderRadius.circular(retro.borderRadius),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Text(
+                  'Top artist',
+                  style: RetroTypography.pixelBadge(
+                    color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
+                    fontSize: 8.5,
+                  ),
+                ),
+                const Spacer(),
+                RetroIcon(
+                  'chevron_right',
+                  size: 12,
+                  color: theme.colorScheme.onSurface.withValues(alpha: 0.4),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Text(
+              topArtist != null ? topArtist.name : 'No artist',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: RetroTypography.pixelHeader(
+                color: theme.colorScheme.primary,
+                fontSize: 11,
+              ),
+            ),
+            const SizedBox(height: 14),
+            Center(
+              child: RetroCircleAvatar(
+                artPath: topArtist?.artPath,
+                fallbackText: topArtist?.name,
+                size: 114,
+                accentColor: theme.colorScheme.primary,
+                borderColor: retro.borderColor,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ── Top Song Card ──────────────────────────────────────────────────────────
+
+  Widget _buildTopSongCard(
+    BuildContext context,
+    SoundCapsuleStats stats,
+    ThemeData theme,
+    RetroThemeTokens retro,
+  ) {
+    final topSong = stats.topSongs.firstOrNull;
+
+    return GestureDetector(
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => TopSongsScreen(stats: stats),
+          ),
+        );
+      },
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: retro.cardColor,
+          border: Border.all(
+            color: retro.borderColor,
+            width: retro.borderWidth,
+          ),
+          borderRadius: BorderRadius.circular(retro.borderRadius),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Text(
+                  'Top song',
+                  style: RetroTypography.pixelBadge(
+                    color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
+                    fontSize: 8.5,
+                  ),
+                ),
+                const Spacer(),
+                RetroIcon(
+                  'chevron_right',
+                  size: 12,
+                  color: theme.colorScheme.onSurface.withValues(alpha: 0.4),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Text(
+              topSong != null ? topSong.name : 'No song',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: RetroTypography.pixelHeader(
+                color: retro.accentYellow,
+                fontSize: 11,
+              ),
+            ),
+            const SizedBox(height: 14),
+            Center(
+              child: Container(
+                width: 114,
+                height: 114,
+                decoration: BoxDecoration(
+                  border: Border.all(
+                    color: retro.borderColor,
+                    width: 2.0,
+                  ),
+                ),
+                clipBehavior: Clip.antiAlias,
+                child: topSong?.artPath != null
+                    ? RetroAlbumArt(
+                        artPath: topSong!.artPath,
+                        title: topSong.name,
+                        artist: topSong.subtitle,
+                        width: 114,
+                        height: 114,
+                        borderRadius: BorderRadius.zero,
+                      )
+                    : Container(
+                        color: theme.colorScheme.surface,
+                        alignment: Alignment.center,
+                        child: RetroIcon(
+                          'disc',
+                          size: 38,
+                          color: retro.accentYellow,
+                        ),
+                      ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildListeningHintBanner(ThemeData theme, RetroThemeTokens retro) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      margin: const EdgeInsets.only(top: 8, bottom: 24),
+      decoration: BoxDecoration(
+        color: retro.cardColor,
+        border: Border.all(color: retro.borderColor, width: retro.borderWidth),
+        borderRadius: BorderRadius.circular(retro.borderRadius),
+      ),
+      child: Row(
+        children: [
+          RetroIcon('sound_capsule', size: 28, color: retro.accentGreen),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              'Play tracks for 30+ seconds to fill your capsules with authentic listening metrics!',
+              style: RetroTypography.pixelBadge(
+                color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
+                fontSize: 8.5,
+              ).copyWith(height: 1.5),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
 
   // ── 1. Hero Card ──────────────────────────────────────────────────────────
 
@@ -442,12 +1056,12 @@ class _SoundCapsuleScreenState extends ConsumerState<SoundCapsuleScreen> {
               ),
             ),
             const SizedBox(width: 8),
-            RetroAlbumArt(
+            RetroCircleAvatar(
               artPath: artist.artPath,
-              title: artist.name,
-              artist: artist.name,
-              width: 32,
-              height: 32,
+              fallbackText: artist.name,
+              size: 32,
+              accentColor: rankColor,
+              borderColor: retro.borderColor,
             ),
             const SizedBox(width: 10),
             Expanded(
@@ -828,6 +1442,158 @@ class _SoundCapsuleScreenState extends ConsumerState<SoundCapsuleScreen> {
     );
   }
 
+  // ── Month Breakdown Details Sheet ─────────────────────────────────────────
+
+  void _openMonthDetails(
+    BuildContext context,
+    SoundCapsuleStats stats,
+    ThemeData theme,
+    RetroThemeTokens retro,
+  ) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => SafeArea(
+        top: true,
+        child: Container(
+          height: MediaQuery.of(context).size.height * 0.88,
+          decoration: BoxDecoration(
+            color: theme.scaffoldBackgroundColor,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(14)),
+            border: Border(
+              top: BorderSide(color: retro.borderColor, width: retro.borderWidth),
+            ),
+          ),
+          child: Column(
+            children: [
+              // Drag Handle
+              Center(
+                child: Container(
+                  margin: const EdgeInsets.symmetric(vertical: 8),
+                  width: 36,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: theme.colorScheme.onSurface.withValues(alpha: 0.25),
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              // Top Title Bar
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                decoration: BoxDecoration(
+                  color: retro.cardColor,
+                  border: Border(
+                    bottom: BorderSide(color: retro.borderColor, width: retro.borderWidth),
+                  ),
+                ),
+              child: Row(
+                children: [
+                  RetroIcon('sound_capsule', size: 16, color: retro.accentGreen),
+                  const SizedBox(width: 8),
+                  Text(
+                    '${stats.periodLabel.toUpperCase()} DETAILS',
+                    style: RetroTypography.pixelHeader(
+                      color: theme.colorScheme.onSurface,
+                      fontSize: 11,
+                    ),
+                  ),
+                  const Spacer(),
+                  IconButton(
+                    icon: RetroIcon('close', size: 16, color: theme.colorScheme.onSurface),
+                    onPressed: () => Navigator.pop(context),
+                  ),
+                ],
+              ),
+            ),
+            Expanded(
+              child: ListView(
+                padding: const EdgeInsets.all(16),
+                children: [
+                  _buildHeroCard(stats, theme, retro),
+                  const SizedBox(height: 16),
+                  if (stats.topArtists.isNotEmpty) ...[
+                    _buildTopArtistsCard(stats, theme, retro),
+                    const SizedBox(height: 16),
+                  ],
+                  if (stats.topSongs.isNotEmpty) ...[
+                    _buildTopSongsCard(stats, theme, retro),
+                    const SizedBox(height: 16),
+                  ],
+                  if (stats.dailyStats.isNotEmpty) ...[
+                    _buildActivityChartCard(stats, theme, retro),
+                    const SizedBox(height: 16),
+                  ],
+                  _buildInsightsCard(stats, theme, retro),
+                  const SizedBox(height: 20),
+                  RetroButton(
+                    label: 'SHARE THIS CAPSULE',
+                    icon: const RetroIcon('share', size: 14, color: Colors.black),
+                    backgroundColor: theme.colorScheme.primary,
+                    textColor: theme.colorScheme.onPrimary,
+                    onPressed: () {
+                      Navigator.pop(context);
+                      _openShareSheet(context, stats);
+                    },
+                  ),
+                  const SizedBox(height: 20),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
+}
+
+  // ── About Sound Capsule Dialog ────────────────────────────────────────────
+
+  void _showAboutDialog(
+    BuildContext context,
+    ThemeData theme,
+    RetroThemeTokens retro,
+  ) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: retro.cardColor,
+        shape: RoundedRectangleBorder(
+          side: BorderSide(color: retro.borderColor, width: retro.borderWidth),
+          borderRadius: BorderRadius.circular(retro.borderRadius),
+        ),
+        title: Row(
+          children: [
+            RetroIcon('sound_capsule', size: 18, color: retro.accentGreen),
+            const SizedBox(width: 8),
+            Text(
+              'SOUND CAPSULE',
+              style: RetroTypography.pixelHeader(
+                color: theme.colorScheme.onSurface,
+                fontSize: 12,
+              ),
+            ),
+          ],
+        ),
+        content: Text(
+          'Sound Capsule creates a monthly musical snapshot of your listening habits, total minutes played, top artists, and most replayed tracks.\n\nPlay tracks for 30+ seconds to fill your capsules and explore your listening evolution month by month.',
+          style: RetroTypography.retroMono(
+            color: theme.colorScheme.onSurface.withValues(alpha: 0.8),
+            fontSize: 13,
+            height: 1.4,
+          ),
+        ),
+        actions: [
+          RetroButton(
+            label: 'GOT IT',
+            onPressed: () => Navigator.pop(ctx),
+          ),
+        ],
+      ),
+    );
+  }
+
   // ── Share Bottom Sheet ────────────────────────────────────────────────────
 
   void _openShareSheet(BuildContext context, SoundCapsuleStats stats) {
@@ -853,8 +1619,8 @@ class _SoundCapsuleScreenState extends ConsumerState<SoundCapsuleScreen> {
 
   String _monthName(int month) {
     const names = [
-      'JANUARY', 'FEBRUARY', 'MARCH', 'APRIL', 'MAY', 'JUNE',
-      'JULY', 'AUGUST', 'SEPTEMBER', 'OCTOBER', 'NOVEMBER', 'DECEMBER'
+      'January', 'February', 'March', 'April', 'May', 'June',
+      'July', 'August', 'September', 'October', 'November', 'December'
     ];
     return names[month - 1];
   }
